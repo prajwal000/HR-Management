@@ -4,10 +4,24 @@ import { WelcomeEmail } from "@/emails/welcome-email";
 import { TaskAssignedEmail } from "@/emails/task-assigned-email";
 import { TaskStatusEmail } from "@/emails/task-status-email";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM = process.env.EMAIL_FROM ?? "onboarding@yourdomain.com";
 const APP_URL = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+
+let resendClient: Resend | null = null;
+
+// Resend's constructor throws immediately if the key is missing, so it's
+// instantiated lazily (on first send) rather than at module load — that
+// keeps a missing RESEND_API_KEY from crashing every action that imports
+// this module, not just the ones that actually send email.
+function getResendClient(): Resend {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not set");
+  }
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 
 function logEmailFailure(context: string, error: unknown) {
   console.error(`[email] Failed to send ${context}:`, error);
@@ -23,7 +37,7 @@ export async function sendWelcomeEmail({
   temporaryPassword: string;
 }) {
   try {
-    await resend.emails.send({
+    await getResendClient().emails.send({
       from: FROM,
       to: email,
       subject: "Your HR Manager account has been created",
@@ -57,7 +71,7 @@ export async function sendTaskAssignedEmail({
   dueDate: Date | null;
 }) {
   try {
-    await resend.emails.send({
+    await getResendClient().emails.send({
       from: FROM,
       to: assigneeEmail,
       subject: `New Task Assigned — ${taskTitle}`,
@@ -91,7 +105,7 @@ export async function sendTaskStatusEmail({
   status: string;
 }) {
   try {
-    await resend.emails.send({
+    await getResendClient().emails.send({
       from: FROM,
       to: creatorEmail,
       subject: `Task Updated — ${taskTitle}`,
